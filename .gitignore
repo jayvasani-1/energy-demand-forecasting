@@ -1,0 +1,44 @@
+# Virtual environment
+venv/
+
+# Scripts folder venv files
+Scripts/activate
+Scripts/activate.bat
+Scripts/activate.fish
+Scripts/activate.nu
+Scripts/activate.ps1
+Scripts/activate_this.py
+Scripts/deactivate.bat
+Scripts/deactivate.nu
+Scripts/pydoc.bat
+Scripts/demo
+Scripts/myip
+Scripts/pycclean
+Scripts/*.exe
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+get-pip.py
+pyvenv.cfg
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data
+data/raw/
+Lib/
+share/
+test/
+
+# Model outputs
+outputs/models/
+outputs/predictions/
+outputs/visualizations/
