@@ -1,0 +1,5 @@
+[server]
+enableStaticServing = true
+
+[git]
+lfs = true
