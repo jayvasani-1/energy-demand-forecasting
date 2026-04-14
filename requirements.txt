@@ -3,7 +3,7 @@ scikit-learn>=1.6.0
 joblib
 matplotlib>=3.9.0
 numpy>=1.26.0,<2.1.0
-tensorflow==2.18.0
+tensorflow-cpu==2.18.0
 streamlit>=1.32.0
 plotly>=5.0.0
 shap
