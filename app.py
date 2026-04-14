@@ -47,11 +47,11 @@ def load_data(file_path, target_col):
     df = df[["Datetime", target_col]].dropna()
     
     # FIX 1: Limit data size on Streamlit Cloud to prevent memory crash
-    MAX_ROWS = 30000
+    MAX_ROWS = 25000 
     if len(df) > MAX_ROWS:
         df = df.tail(MAX_ROWS).reset_index(drop=True)
     return df
-    
+
 @st.cache_data
 def engineer_features(df, target_col):
     """Matches Scripts/feature_engineering.py exactly — 6 features"""
@@ -140,7 +140,7 @@ with st.sidebar:
 
     st.markdown("### 📅 Date Range")
     if os.path.exists(file_path):
-        df_raw     = load_data(file_path, target_col)
+        df_raw     = load_data(file_path, target_col) # This calls the fixed sampler
         min_date   = df_raw["Datetime"].min().date()
         max_date   = df_raw["Datetime"].max().date()
         start_date = st.date_input("From",
@@ -173,12 +173,11 @@ if len(df_filtered) < 200:
     st.warning("Please select a wider date range (at least a few months).")
     st.stop()
 
-# FIX 4: Keep as DataFrame (remove .values) to fix UserWarning about feature names
+# FIX 4: keep as DataFrame, not numpy array to avoid Feature Names Warning
 X               = df_filtered[FEATURE_COLS]
 y               = df_filtered[target_col].values
 split           = int(len(X) * (1 - test_split / 100))
-
-# Use .iloc for DataFrame slicing
+# use .iloc for DataFrame slicing
 X_train, X_test = X.iloc[:split], X.iloc[split:]
 y_train, y_test = y[:split], y[split:]
 dates_test      = df_filtered["Datetime"].values[split:]
@@ -214,7 +213,7 @@ with tab1:
             from sklearn.preprocessing import MinMaxScaler
             scaler_X  = MinMaxScaler()
             scaler_y  = MinMaxScaler()
-            scaler_X.fit(X.iloc[:split]) # Fit on train portion
+            scaler_X.fit(X.iloc[:split]) # use iloc for consistency
             X_test_s  = scaler_X.transform(X_test)
             scaler_y.fit(y_train.reshape(-1, 1))
             X_test_r  = X_test_s.reshape((X_test_s.shape[0], 1, X_test_s.shape[1]))
@@ -270,7 +269,7 @@ with tab1:
     )
     fig.update_xaxes(showgrid=True, gridcolor="#f0f0f0")
     fig.update_yaxes(showgrid=True, gridcolor="#f0f0f0")
-    # FIX 3: Replaced use_container_width with width='stretch'
+    # FIX 3: replace use_container_width with width='stretch'
     st.plotly_chart(fig, width='stretch')
 
     pred_df = pd.DataFrame({
@@ -393,7 +392,7 @@ with tab4:
 # ══════════════════════════════════════════════════════════════════════════════
 with tab5:
     st.subheader("Feature Importance")
-    if model_choice == "Random Forest" and model is not None:
+    if model_choice == "Random Forest" and 'model' in locals() and model is not None:
         importances = pd.DataFrame({
             "Feature":    FEATURE_COLS,
             "Importance": model.feature_importances_
@@ -410,6 +409,7 @@ with tab5:
                 import shap
                 with st.spinner("Computing SHAP values..."):
                     explainer   = shap.TreeExplainer(model)
+                    # use iloc for slicing DataFrame
                     shap_values = explainer.shap_values(X_test.iloc[:300])
                 shap_df = pd.DataFrame(
                     np.abs(shap_values).mean(axis=0),
@@ -422,7 +422,7 @@ with tab5:
                 fig_shap.update_layout(height=350, showlegend=False, yaxis_title="Feature")
                 st.plotly_chart(fig_shap, width='stretch')
             except Exception:
-                st.info("SHAP calculation skipped (usually due to memory limits).")
+                st.info("SHAP skipped or installation missing.")
     else:
         st.info("Select Random Forest in the sidebar to see feature importance.")
 
