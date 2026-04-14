@@ -45,8 +45,13 @@ def load_data(file_path, target_col):
     df = pd.read_csv(file_path, parse_dates=["Datetime"])
     df = df.sort_values("Datetime").reset_index(drop=True)
     df = df[["Datetime", target_col]].dropna()
+    
+    # FIX 1: Limit data size on Streamlit Cloud to prevent memory crash
+    MAX_ROWS = 30000
+    if len(df) > MAX_ROWS:
+        df = df.tail(MAX_ROWS).reset_index(drop=True)
     return df
-
+    
 @st.cache_data
 def engineer_features(df, target_col):
     """Matches Scripts/feature_engineering.py exactly — 6 features"""
@@ -168,11 +173,13 @@ if len(df_filtered) < 200:
     st.warning("Please select a wider date range (at least a few months).")
     st.stop()
 
-# use exact 6 features model was trained on
-X               = df_filtered[FEATURE_COLS].values
+# FIX 4: Keep as DataFrame (remove .values) to fix UserWarning about feature names
+X               = df_filtered[FEATURE_COLS]
 y               = df_filtered[target_col].values
 split           = int(len(X) * (1 - test_split / 100))
-X_train, X_test = X[:split], X[split:]
+
+# Use .iloc for DataFrame slicing
+X_train, X_test = X.iloc[:split], X.iloc[split:]
 y_train, y_test = y[:split], y[split:]
 dates_test      = df_filtered["Datetime"].values[split:]
 
@@ -207,7 +214,7 @@ with tab1:
             from sklearn.preprocessing import MinMaxScaler
             scaler_X  = MinMaxScaler()
             scaler_y  = MinMaxScaler()
-            X_train_s = scaler_X.fit_transform(X_train)
+            scaler_X.fit(X.iloc[:split]) # Fit on train portion
             X_test_s  = scaler_X.transform(X_test)
             scaler_y.fit(y_train.reshape(-1, 1))
             X_test_r  = X_test_s.reshape((X_test_s.shape[0], 1, X_test_s.shape[1]))
@@ -221,7 +228,8 @@ with tab1:
                     from sklearn.preprocessing import MinMaxScaler
                     scaler_X  = MinMaxScaler()
                     scaler_y  = MinMaxScaler()
-                    X_train_s = scaler_X.fit_transform(X_train)
+                    scaler_X.fit(X.iloc[:split])
+                    X_train_s = scaler_X.transform(X_train)
                     X_test_s  = scaler_X.transform(X_test)
                     y_train_s = scaler_y.fit_transform(y_train.reshape(-1, 1))
                     X_train_r = X_train_s.reshape((X_train_s.shape[0], 1, X_train_s.shape[1]))
@@ -262,7 +270,8 @@ with tab1:
     )
     fig.update_xaxes(showgrid=True, gridcolor="#f0f0f0")
     fig.update_yaxes(showgrid=True, gridcolor="#f0f0f0")
-    st.plotly_chart(fig, use_container_width=True)
+    # FIX 3: Replaced use_container_width with width='stretch'
+    st.plotly_chart(fig, width='stretch')
 
     pred_df = pd.DataFrame({
         "Datetime": dates_test, "Actual_MW": y_test, "Predicted_MW": y_pred
@@ -291,7 +300,7 @@ with tab2:
                                labels={"value": "Residual (MW)"},
                                color_discrete_sequence=["#2196F3"])
         fig_res.update_layout(showlegend=False, height=320)
-        st.plotly_chart(fig_res, use_container_width=True)
+        st.plotly_chart(fig_res, width='stretch')
 
     with col2:
         fig_sc = px.scatter(x=y_test, y=y_pred, opacity=0.3,
@@ -302,7 +311,7 @@ with tab2:
         fig_sc.add_shape(type="line", x0=mn, y0=mn, x1=mx, y1=mx,
                          line=dict(color="gray", dash="dash"))
         fig_sc.update_layout(height=320)
-        st.plotly_chart(fig_sc, use_container_width=True)
+        st.plotly_chart(fig_sc, width='stretch')
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 3 — RF vs LSTM COMPARISON
@@ -332,7 +341,7 @@ with tab3:
             hovermode="x unified", height=420,
             plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)"
         )
-        st.plotly_chart(fig_cmp, use_container_width=True)
+        st.plotly_chart(fig_cmp, width='stretch')
     else:
         st.info("Run main.py first to generate saved predictions for both models.")
 
@@ -349,7 +358,7 @@ with tab4:
                 else "background-color: #f3e5f5; color: #6a1b9a;" if v == "LSTM" else "",
                 subset=["Winner"]
             ),
-            use_container_width=True
+            width='stretch'
         )
 
         st.markdown("---")
@@ -361,7 +370,7 @@ with tab4:
                 color_discrete_map={"RF_RMSE": "#4CAF50", "LSTM_RMSE": "#9C27B0"}
             )
             fig_rmse.update_layout(height=380, xaxis_tickangle=-45)
-            st.plotly_chart(fig_rmse, use_container_width=True)
+            st.plotly_chart(fig_rmse, width='stretch')
 
         with col2:
             fig_mae = px.bar(
@@ -370,7 +379,7 @@ with tab4:
                 color_discrete_map={"RF_MAE": "#4CAF50", "LSTM_MAE": "#9C27B0"}
             )
             fig_mae.update_layout(height=380, xaxis_tickangle=-45)
-            st.plotly_chart(fig_mae, use_container_width=True)
+            st.plotly_chart(fig_mae, width='stretch')
 
         rf_wins   = (summary["Winner"] == "RF").sum()
         lstm_wins = (summary["Winner"] == "LSTM").sum()
@@ -394,14 +403,14 @@ with tab5:
                         orientation="h", title="Random Forest Feature Importances",
                         color="Importance", color_continuous_scale="Blues")
         fig_fi.update_layout(height=350, showlegend=False)
-        st.plotly_chart(fig_fi, use_container_width=True)
+        st.plotly_chart(fig_fi, width='stretch')
 
         if show_shap:
             try:
                 import shap
                 with st.spinner("Computing SHAP values..."):
                     explainer   = shap.TreeExplainer(model)
-                    shap_values = explainer.shap_values(X_test[:300])
+                    shap_values = explainer.shap_values(X_test.iloc[:300])
                 shap_df = pd.DataFrame(
                     np.abs(shap_values).mean(axis=0),
                     index=FEATURE_COLS, columns=["SHAP"]
@@ -411,9 +420,9 @@ with tab5:
                                   orientation="h", title="SHAP Feature Importance",
                                   color="SHAP", color_continuous_scale="Oranges")
                 fig_shap.update_layout(height=350, showlegend=False, yaxis_title="Feature")
-                st.plotly_chart(fig_shap, use_container_width=True)
-            except ImportError:
-                st.info("Run `pip install shap` to enable SHAP values.")
+                st.plotly_chart(fig_shap, width='stretch')
+            except Exception:
+                st.info("SHAP calculation skipped (usually due to memory limits).")
     else:
         st.info("Select Random Forest in the sidebar to see feature importance.")
 
@@ -423,7 +432,7 @@ with tab5:
 with tab6:
     st.subheader(f"Dataset Preview — {dataset_name}")
     show_cols = ["Datetime", target_col] + FEATURE_COLS
-    st.dataframe(df_filtered[show_cols].head(500), use_container_width=True)
+    st.dataframe(df_filtered[show_cols].head(500), width='stretch')
     st.caption(f"Showing first 500 of {len(df_filtered):,} rows in selected date range.")
 
     csv = df_filtered.to_csv(index=False).encode("utf-8")
